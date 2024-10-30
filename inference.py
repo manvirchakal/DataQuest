@@ -23,13 +23,66 @@ def load_model():
     return model, tokenizer
 
 def generate_sql(question, model, tokenizer):
+    schema = """
+Table project:
+- id (INT, PK)
+- name (VARCHAR)
+- description (VARCHAR)
+- company (VARCHAR)
+
+Table student:
+- sid (INT, PK)
+- team (INT)
+- entry_count (INT)
+- total_time (FLOAT)
+- team_rating (FLOAT)
+- project (INT, FK to project.id)
+- name (VARCHAR)
+- phone_number (VARCHAR)
+- email (VARCHAR)
+
+Table time_entry:
+- id (INT, PK)
+- author (INT, FK to student.sid)
+- time_spent (INT)
+- comments (VARCHAR)
+- created (DATETIME)
+- updated (DATETIME)
+
+Table faculty:
+- fid (INT, PK)
+- team (INT)
+- project (INT, FK to project.id)
+- name (VARCHAR)
+- phone_number (VARCHAR)
+- email (VARCHAR)
+
+Table review_prompt:
+- pid (INT, PK)
+- title (VARCHAR)
+- prompt (VARCHAR)
+- weight (FLOAT)
+
+Table peer_review:
+- rid (INT, PK)
+- author (INT, FK to student.sid)
+- recipient (INT, FK to student.sid)
+- prompt (INT, FK to review_prompt.pid)
+- comments (VARCHAR)
+- created (DATETIME)
+- updated (DATETIME)
+"""
+
     prompt = f"""<s>[INST] <<SYS>>
-You are a helpful SQL assistant. Convert the following question to SQL.
+You are a helpful SQL assistant. Convert the following question to SQL using the provided schema.
+
+Database Schema:
+{schema}
 <</SYS>>
 
 Question: {question}
 
-Write the SQL query to answer this question. [/INST]
+Write a SQL query to answer this question. Use only the tables and columns defined in the schema above. [/INST]
 """
     
     inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
