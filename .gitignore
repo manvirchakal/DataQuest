@@ -25,3 +25,7 @@ yarn-error.log*
 /sql-assistant
 
 /frontend/node_modules
+
+/*/__pycache__
+
+/offload

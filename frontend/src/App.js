@@ -9,42 +9,46 @@ function App() {
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [feedbackLoop, setFeedbackLoop] = useState(false);
 
-  const handleGenerate = async (e) => {
-    e.preventDefault();
+  const handleGenerate = async (e, includeError = false) => {
+    e?.preventDefault();
     setLoading(true);
     setError('');
-    setSqlQuery('');
-    setEditableSqlQuery('');
     setResults(null);
 
     try {
-      // Get SQL query
+      // Get SQL query with optional error feedback
       const queryResponse = await axios.post('http://localhost:8000/query', {
-        question: question
+        question: question,
+        previous_error: includeError ? error : null,
+        previous_query: includeError ? editableSqlQuery : null
       });
       const generatedQuery = queryResponse.data.sql_query;
       setSqlQuery(generatedQuery);
       setEditableSqlQuery(generatedQuery);
+      setFeedbackLoop(false); // Reset feedback loop if successful
     } catch (err) {
       setError(err.response?.data?.detail || 'An error occurred during generation');
+      setFeedbackLoop(true);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleExecuteQuery = async () => {
+  const handleExecute = async () => {
     setLoading(true);
     setError('');
     setResults(null);
-
     try {
-      const resultsResponse = await axios.post('http://localhost:8000/execute-query', {
+      const response = await axios.post('http://localhost:8000/execute-query', {
         query: editableSqlQuery
       });
-      setResults(resultsResponse.data.results);
+      setResults(response.data.results);
+      setFeedbackLoop(false);
     } catch (err) {
-      setError(err.response?.data?.detail || 'An error occurred during execution');
+      setError(err.response?.data?.detail || 'An error occurred');
+      setFeedbackLoop(true);
     } finally {
       setLoading(false);
     }
@@ -53,12 +57,10 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <h1>DataQuest</h1>
-        <p>Natural Language to SQL Query Converter</p>
+        <h1>SQL Query Generator</h1>
       </header>
 
       <main className="App-main">
-        {/* Question Input Section */}
         <section className="input-section">
           <h2>Enter Your Question</h2>
           <form onSubmit={handleGenerate}>
@@ -77,9 +79,21 @@ function App() {
           </form>
         </section>
 
-        {error && <div className="error">{error}</div>}
+        {error && (
+          <div className="error-section">
+            <div className="error">{error}</div>
+            {feedbackLoop && (
+              <button 
+                onClick={(e) => handleGenerate(e, true)}
+                className="retry-button"
+                disabled={loading}
+              >
+                Retry with Error Feedback
+              </button>
+            )}
+          </div>
+        )}
 
-        {/* SQL Query Section */}
         {sqlQuery && (
           <section className="query-section">
             <h2>Generated SQL Query</h2>
@@ -90,10 +104,10 @@ function App() {
                 className="sql-editor"
                 rows={5}
               />
-              <button 
-                onClick={handleExecuteQuery} 
-                disabled={loading || !editableSqlQuery}
+              <button
+                onClick={handleExecute}
                 className="execute-button"
+                disabled={loading}
               >
                 {loading ? 'Executing...' : 'Execute Query'}
               </button>
@@ -101,32 +115,24 @@ function App() {
           </section>
         )}
 
-        {/* Results Section */}
         {results && (
           <section className="result-section">
-            <h2>Query Results</h2>
+            <h2>Results</h2>
             <div className="results-table">
               {results.length > 0 ? (
                 <table>
-                  <thead>
-                    <tr>
-                      {Object.keys(results[0]).map(key => (
-                        <th key={key}>{key}</th>
-                      ))}
-                    </tr>
-                  </thead>
                   <tbody>
                     {results.map((row, i) => (
                       <tr key={i}>
-                        {Object.values(row).map((value, j) => (
-                          <td key={j}>{value}</td>
+                        {row.map((cell, j) => (
+                          <td key={j}>{cell}</td>
                         ))}
                       </tr>
                     ))}
                   </tbody>
                 </table>
               ) : (
-                <p className="no-results">No results found</p>
+                <p>No results found</p>
               )}
             </div>
           </section>

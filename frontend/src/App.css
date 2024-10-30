@@ -182,3 +182,20 @@ tr:hover {
     transform: rotate(360deg);
   }
 }
+
+.error-section {
+  background-color: #fff3f3;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.retry-button {
+  background-color: #dc3545;
+  margin-top: 10px;
+}
+
+.retry-button:hover:not(:disabled) {
+  background-color: #c82333;
+}
