@@ -30,4 +30,6 @@ yarn-error.log*
 
 /offload
 
-/sql-assistant-final
+sql-assistant-final/
+
+.safetensors
