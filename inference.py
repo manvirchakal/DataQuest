@@ -1,53 +1,91 @@
 import torch
-from transformers import pipeline, BitsAndBytesConfig, AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import PeftModel
 
-# Use GPU and verify
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Using device: {device}")
+def load_model():
+    # Load base model and tokenizer
+    base_model_id = "meta-llama/Llama-3.2-1B-Instruct"
+    adapter_path = "./sql-assistant-final"
+    
+    # Load tokenizer
+    tokenizer = AutoTokenizer.from_pretrained(base_model_id)
+    
+    # Load base model with same 4-bit quantization
+    model = AutoModelForCausalLM.from_pretrained(
+        base_model_id,
+        device_map="auto",
+        torch_dtype=torch.float16,
+    )
+    
+    # Load adapter weights
+    model = PeftModel.from_pretrained(model, adapter_path)
+    
+    return model, tokenizer
 
-# Configure 4-bit quantization
-quantization_config = BitsAndBytesConfig(
-    load_in_4bit=True,
-    bnb_4bit_compute_dtype=torch.float16,
-    bnb_4bit_quant_type="nf4",
-    bnb_4bit_use_double_quant=True,
-)
-
-model_id = "meta-llama/Llama-3.2-1B-Instruct"
-
-# Load model and tokenizer separately
-model = AutoModelForCausalLM.from_pretrained(
-    model_id,
-    device_map="auto",
-    torch_dtype=torch.float16,
-    quantization_config=quantization_config,
-)
-tokenizer = AutoTokenizer.from_pretrained(model_id)
-
-# Create pipeline with pre-loaded model and tokenizer
-pipe = pipeline(
-    "text-generation",
-    model=model,
-    tokenizer=tokenizer,
-    device_map="auto",
-)
-
-# Verify model device
-print(f"Model is on: {next(pipe.model.parameters()).device}")
-
-# Format the prompt correctly for Llama
-prompt = """<s>[INST] <<SYS>>
-You are a pirate chatbot who always responds in pirate speak!
+def generate_sql(question, model, tokenizer):
+    prompt = f"""<s>[INST] <<SYS>>
+You are a helpful SQL assistant. Convert the following question to SQL.
 <</SYS>>
 
-Who are you? [/INST]
-"""
+Question: {question}
 
-outputs = pipe(
-    prompt,
-    max_new_tokens=256,
-    do_sample=True,
-    temperature=0.7,
-    top_p=0.9,
-)
-print(outputs[0]["generated_text"])
+Write the SQL query to answer this question. [/INST]
+"""
+    
+    inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
+    
+    outputs = model.generate(
+        **inputs,
+        max_new_tokens=256,
+        temperature=0.7,
+        do_sample=True,
+        top_p=0.95,
+        top_k=50,
+        repetition_penalty=1.1
+    )
+    
+    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    
+    # Clean up the response
+    try:
+        # Remove the original prompt
+        response = response.split("[/INST]")[1].strip()
+        
+        # Remove any remaining special tokens or markers
+        response = response.split("</s>")[0].strip()
+        response = response.split("</sql>")[0].strip()
+        response = response.split("</INST>")[0].strip()
+        
+        # Remove any SQL or instruction markers
+        response = response.replace("SQL:", "").strip()
+        response = response.replace("Query:", "").strip()
+        
+    except:
+        pass
+        
+    return response
+
+def main():
+    print("Loading model...")
+    model, tokenizer = load_model()
+    print("Model loaded! Ready for questions.")
+    
+    while True:
+        # Get user input
+        question = input("\nEnter your question (or 'quit' to exit): ")
+        
+        if question.lower() == 'quit':
+            break
+            
+        try:
+            # Generate SQL
+            sql = generate_sql(question, model, tokenizer)
+            print("\nGenerated SQL Query:")
+            print("-" * 50)
+            print(sql)
+            print("-" * 50)
+        except Exception as e:
+            print(f"An error occurred: {str(e)}")
+
+if __name__ == "__main__":
+    main()

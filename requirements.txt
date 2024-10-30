@@ -2,3 +2,9 @@ transformers
 accelerate
 bitsandbytes
 peft
+datasets
+trl
+fastapi
+uvicorn
+sqlalchemy
+pydantic
