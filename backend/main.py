@@ -23,7 +23,7 @@ app.add_middleware(
 print("Loading model...")
 
 base_model_id = "meta-llama/Llama-3.2-1B-Instruct"
-adapter_path = "../sql-assistant-final"
+adapter_path = "../sql-assistant-final-verbose-prompts"
 
 # Load base model and tokenizer
 tokenizer = AutoTokenizer.from_pretrained(base_model_id)
@@ -41,53 +41,30 @@ print("Model loaded!")
 SCHEMA = """
 TABLE STRUCTURES:
 
-1. project
-   - id: INTEGER PRIMARY KEY
-   - name: TEXT (e.g., "AI Chatbot", "Data Analytics Platform")
-   - description: TEXT
-   - company: TEXT (e.g., "TechCorp", "DataCo")
+1. Projects
+   - project_id: INTEGER PRIMARY KEY
+   - name: TEXT NOT NULL
+   - department: TEXT NOT NULL
+   - budget: INTEGER NOT NULL
 
-2. student
-   - sid: INTEGER PRIMARY KEY
-   - team: INTEGER (1-8)
-   - entry_count: INTEGER
-   - total_time: FLOAT
-   - team_rating: FLOAT (range: 0-5)
-   - project: INTEGER → project.id
-   - name: TEXT
-   - phone_number: TEXT
-   - email: TEXT
+2. Teams
+   - team_id: INTEGER PRIMARY KEY
+   - name: TEXT NOT NULL
 
-3. time_entry
-   - id: INTEGER PRIMARY KEY
-   - author: INTEGER → student.sid
-   - time_spent: INTEGER (minutes)
-   - comments: JSON {"Accomplished": "", "Roadblocks": "", "Plans": ""}
-   - created: DATETIME
-   - updated: DATETIME
+3. Students
+   - student_id: INTEGER PRIMARY KEY
+   - name: TEXT NOT NULL
+   - team_id: INTEGER NOT NULL (references Teams.team_id)
+   - project_id: INTEGER (references Projects.project_id)
+   - grade: FLOAT DEFAULT 0.0
+   - enrollment_date: DATE NOT NULL
 
-4. faculty
-   - fid: INTEGER PRIMARY KEY
-   - team: INTEGER (1-8)
-   - project: INTEGER → project.id
-   - name: TEXT (e.g., "Dr. Alice Thompson")
-   - phone_number: TEXT
-   - email: TEXT
-
-5. review_prompt
-   - pid: INTEGER PRIMARY KEY
-   - title: TEXT (e.g., "Technical Skills", "Communication")
-   - prompt: TEXT
-   - weight: FLOAT (range: 0-1)
-
-6. peer_review
-   - rid: INTEGER PRIMARY KEY
-   - author: INTEGER → student.sid
-   - recipient: INTEGER → student.sid
-   - prompt: INTEGER → review_prompt.pid
-   - comments: TEXT
-   - created: DATETIME
-   - updated: DATETIME
+4. TimeEntries
+   - entry_id: INTEGER PRIMARY KEY
+   - student_id: INTEGER NOT NULL (references Students.student_id)
+   - hours: INTEGER NOT NULL
+   - task_date: DATE NOT NULL
+   - task_type: TEXT NOT NULL
 """
 
 class Query(BaseModel):
@@ -120,35 +97,21 @@ Error: {previous_error}
 
 CRITICAL: Output only the fixed SQL query.[/INST]"""
     else:
-        base_prompt = f"""[INST]Write one SQL query for this question: {question}
+        base_prompt = f"""[INST]
 
-Examples of good queries:
-1. "List all students in team 3"
-   SELECT name FROM student WHERE team = 3;
+Write one SQL query for this question: {question}
 
-2. "Show all projects"
-   SELECT name FROM project;
-
-3. "Show students and their projects"
-   SELECT s.name, p.name FROM student s JOIN project p ON s.project = p.id;
-
-Schema:
-{SCHEMA}
-
-Important:
-- Write exactly one SQL query
-- End with semicolon
-- Use lowercase keywords
-- Use exact column names[/INST]"""
+CRITICAL: Output only the SQL query.
+[/INST]"""
 
     inputs = tokenizer(base_prompt, return_tensors="pt").to("cuda")
     outputs = model.generate(
         **inputs,
-        max_new_tokens=200,
-        temperature=1.5,
-        do_sample=False,
+        max_new_tokens=50,
+        temperature=0.1,
+        do_sample=True,
         num_return_sequences=1,
-        repetition_penalty=2.0,
+        repetition_penalty=1.2,
         eos_token_id=tokenizer.eos_token_id,
         pad_token_id=tokenizer.eos_token_id
     )

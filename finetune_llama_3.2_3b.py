@@ -12,6 +12,9 @@ from trl import SFTTrainer
 # Load dataset
 dataset = load_dataset("xlangai/spider")
 
+# Print all columns
+print(dataset['train'].column_names)
+
 # Configure 4-bit quantization
 bnb_config = BitsAndBytesConfig(
     load_in_4bit=True,
@@ -48,20 +51,20 @@ peft_config = LoraConfig(
 model = get_peft_model(model, peft_config)
 
 # Format dataset - simplified instruction format
-def format_instruction(example):
+def format_instruction_with_context(example):
     return {
-        "text": f"""[INST]Convert this question to SQL:
-{example['question']}[/INST]
+        "text": f"""[INST]Database: {example['db_id']}
+Question: {example['question']}[/INST]
 {example['query']}"""
     }
 
 # Format the dataset
-formatted_dataset = dataset.map(format_instruction)
+formatted_dataset = dataset.map(format_instruction_with_context)
 
 # Training arguments
 training_args = TrainingArguments(
     output_dir="./sql-assistant",
-    num_train_epochs=5,
+    num_train_epochs=3,
     per_device_train_batch_size=4,
     gradient_accumulation_steps=4,
     gradient_checkpointing=True,
@@ -89,4 +92,4 @@ trainer = SFTTrainer(
 trainer.train()
 
 # Save the model
-trainer.save_model("sql-assistant-final") 
+trainer.save_model("sql-assistant-final-verbose-prompts") 
