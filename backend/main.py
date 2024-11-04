@@ -22,8 +22,8 @@ app.add_middleware(
 # Load model and tokenizer
 print("Loading model...")
 
-base_model_id = "meta-llama/Llama-3.2-1B-Instruct"
-adapter_path = "../sql-assistant-final-verbose-prompts"
+base_model_id = "meta-llama/Llama-3.2-3B-Instruct"
+adapter_path = "../sql-assistant-final"
 
 # Load base model and tokenizer
 tokenizer = AutoTokenizer.from_pretrained(base_model_id)
@@ -98,6 +98,8 @@ Error: {previous_error}
 CRITICAL: Output only the fixed SQL query.[/INST]"""
     else:
         base_prompt = f"""[INST]
+Based on the following database schema:
+{SCHEMA}
 
 Write one SQL query for this question: {question}
 
@@ -107,7 +109,7 @@ CRITICAL: Output only the SQL query.
     inputs = tokenizer(base_prompt, return_tensors="pt").to("cuda")
     outputs = model.generate(
         **inputs,
-        max_new_tokens=50,
+        max_new_tokens=700,
         temperature=0.1,
         do_sample=True,
         num_return_sequences=1,
